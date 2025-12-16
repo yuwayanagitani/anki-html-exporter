@@ -1,0 +1,17 @@
+{
+  "01_general": {
+    "enabled": true
+  },
+  "02_export": {
+    "default_filename": "selected_back.html",
+    "copy_media_files": true
+  },
+  "03_html": {
+    "doc_lang": "ja",
+    "doc_title": "Anki Back Export"
+  },
+  "04_images": {
+    "img_max_width_px": 800,
+    "img_max_height_px": 400
+  }
+}
