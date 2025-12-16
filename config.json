@@ -8,7 +8,7 @@
     "copy_media_files": true
   },
   "03_html": {
-    "doc_lang": "ja",
+    "doc_lang": "en",
     "doc_title": "Anki HTML Export"
   },
   "04_images": {
