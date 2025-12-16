@@ -48,29 +48,25 @@ def _doc_head(cfg: Optional[Dict[str, Any]] = None) -> str:
     if pdf_layout == "two_column":
         print_css = f"""
 @media print {{
-  body {{
-    font-size: {pdf_font}px;
-  }}
-  .cards {{
-    column-count: 2;
-    column-gap: 16px;
-  }}
-  .card {{
+.card {{
+    font-size: {pdf_font}px !important;
     break-inside: avoid;
     page-break-inside: avoid;
-  }}
 }}
-"""
+.cards {{
+    column-count: 2;
+    column-gap: 16px;
+}}
+}}
+"""                                                                                    
     else:
         print_css = f"""
 @media print {{
-  body {{
-    font-size: {pdf_font}px;
-  }}
-  .card {{
+.card {{
+    font-size: {pdf_font}px !important;
     break-inside: avoid;
     page-break-inside: avoid;
-  }}
+}}
 }}
 """
 
