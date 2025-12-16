@@ -1,119 +1,120 @@
-# 🌈📤 HTML Exporter (Back Side) for Anki
+# HTML Exporter for Anki
 
-Export the **Back side of selected cards** from Anki’s Browser into a **beautiful, self-contained HTML file**, with styles and images preserved ✨
-
----
-
-## 🎯 What this add-on does
-
-This add-on recreates the **Back side HTML exactly as Anki renders it**, then bundles everything into **one readable HTML file**.
-
-It automatically:
-
-✅ Renders cards using Anki’s own engine (`card.answer()`)  
-🎨 Embeds each note type’s **CSS** so styling stays accurate  
-🧩 Extracts **only the Back side** (after `<hr id="answer">`)  
-🖼 Copies all referenced **images** from Anki’s media folder  
-📄 Combines multiple cards into **one clean HTML page**
+**HTML Exporter for Anki** is an add-on that allows you to export the **Back side of selected Anki cards** into a clean, well-styled **HTML file**, preserving the original card CSS and images.  
+The exported HTML can then be **printed or saved as PDF**, making it ideal for offline study, handouts, and archiving.
 
 ---
 
-## 🖱 How to use
+## 🔗 AnkiWeb Page
 
-1️⃣ Open **Browse** (Anki Browser)  
-2️⃣ Select one or more cards  
-3️⃣ Menu: **Edit → Export selected cards to HTML**  
-4️⃣ Choose a file name (e.g. `selected_back.html`)  
-5️⃣ Done! 🎉  
-   - HTML file is created  
-   - Images are copied next to it  
+This add-on is officially published on **AnkiWeb**:
+
+👉 https://ankiweb.net/shared/info/182840143
+
+Installing from AnkiWeb is recommended for the easiest setup and automatic updates.
 
 ---
 
-## 🧱 Output structure
+## 🎯 Features
 
-Each card is wrapped like this:
-
-```html
-<div class="card">
-  <style>
-    /* note type CSS */
-  </style>
-  <div class="back">
-    <!-- back side HTML -->
-  </div>
-</div>
-```
-
-✨ The result:
-- Large, readable text
-- Card-style layout
-- Works offline
-- Easy to share or archive
+- 📄 Export the **Back side only** of selected cards  
+- 🎨 Preserve original **card CSS styling**  
+- 🖼️ Include all images used in cards  
+- 📁 Generate a **standalone HTML file**  
+- 🖨️ **PDF-ready output** via browser print  
+- 📚 Ideal for notes, handouts, and offline review  
 
 ---
 
-## 🖼 Image handling
+## 🚀 How It Works
 
-- Scans HTML for: `src="filename"`
-- Copies files from:
-  - 📂 `Anki collection.media`
-  - ➜ output folder
-- Keeps relative paths intact
+1. Select cards in the **Anki Browser**  
+2. Use **Edit → Export selected cards to HTML**  
+3. An HTML file is generated with:
+   - Card content
+   - Embedded CSS
+   - Linked images
+4. Open the HTML file in your browser
+5. Print or export it as **PDF**
 
-⚠️ Notes:
-- `srcset`, CSS `url(...)`, or inline `data:` images are **not detected**
-- Web-hosted images stay as external links
-
----
-
-## 📍 Where the menu item lives
-
-The exporter is added to:
-
-➡ **Browser → Edit → Export selected cards to HTML**
-
-(You can easily move it to another menu if desired.)
+This workflow ensures maximum compatibility while keeping the add-on lightweight and dependency-free.
 
 ---
 
-## 🧩 Files included
+## 🖨️ PDF Export Workflow
 
-📄 `__init__.py`  
-- Adds the Browser menu action  
-- Handles file dialogs and errors  
+This add-on does **not directly generate PDFs**.  
+Instead, it provides **print-optimized HTML**, which can be converted to PDF using any modern browser.
 
-📄 `exporter.py`  
-- Renders Back side HTML  
-- Injects CSS  
-- Copies media files  
+### Recommended PDF Export Method
 
----
+1. Open the exported `.html` file in Chrome / Edge / Firefox  
+2. Press **Ctrl + P** (or Cmd + P on macOS)  
+3. Select **Save as PDF**  
+4. Adjust settings as needed:
+   - Paper size (A4 / Letter)
+   - Margins
+   - Scale
+   - Background graphics (recommended ON)
+5. Save the PDF
 
-## 🚑 Troubleshooting
-
-❓ **“No card selected”**  
-👉 Select cards in Browser first
-
-❓ **Images missing**  
-👉 Check that images exist in Anki’s media folder  
-👉 Make sure templates use `src="filename"`
-
-❓ **Export error dialog**  
-👉 Usually caused by:
-- No write permission
-- Invalid output path
-- Missing media folder
+This approach provides:
+- Better layout control  
+- Cross-platform consistency  
+- No external PDF libraries required  
 
 ---
 
-## 💡 Use cases
+## 📦 Installation
 
-📘 Print-ready study notes  
-🖥 Offline HTML review  
-📤 Sharing explanations with others  
-🗂 Long-term archiving of card backs  
+### ⬇️ Install from AnkiWeb (Recommended)
+
+1. Open Anki  
+2. Go to **Tools → Add-Ons → Browse & Install**  
+3. Search for **HTML Exporter for Anki**  
+4. Install and restart Anki
+
+### 📁 Manual Installation (GitHub)
+
+1. Clone or download this repository  
+2. Place it into:  
+   `Anki2/addons21/anki-html-exporter`  
+3. Restart Anki
 
 ---
 
-Enjoy exporting your cards in style 🌟  
+## 🧪 Usage
+
+### Export Selected Cards
+
+1. Open **Browse**  
+2. Select one or more cards  
+3. Click **Edit → Export selected cards to HTML**  
+4. Choose a file name  
+5. Open the HTML file or export it as PDF
+
+---
+
+## ⚙️ Notes & Tips
+
+- Images are copied next to the HTML file and referenced relatively  
+- The export reflects **Anki’s card rendering**, not raw field text  
+- Enable **“Background graphics”** in print settings for best PDF results  
+- Large selections may take a few seconds to process
+
+---
+
+## 🛠 Troubleshooting
+
+| Issue | Solution |
+|------|----------|
+| No cards exported | Ensure cards are selected in the Browser |
+| Images missing | Check `collection.media` files |
+| PDF layout issues | Adjust browser print scale / margins |
+| Styles missing | Enable background graphics when printing |
+
+---
+
+## 📜 License
+
+MIT License — Free to use, modify, and distribute.
