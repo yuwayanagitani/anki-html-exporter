@@ -7,6 +7,7 @@ from aqt import gui_hooks, mw
 from aqt.qt import (
     QAction,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -19,24 +20,24 @@ from aqt.qt import (
     QVBoxLayout,
 )
 
-from .exporter import export_cards_back
+from .exporter import export_cards_html
 
 ADDON_PACKAGE = __name__
 
-# NOTE:
-# - この dict は「デフォルト値」専用（安定したユーザー設定だけ）。
-# - 動的データ（履歴/キャッシュ/ログ/カードID一覧など）は絶対に入れない。
+# 安定したユーザー設定だけを持つ（増殖する情報＝履歴/キャッシュ/ログ/最後のパスは入れない）
 DEFAULT_CONFIG: Dict[str, Any] = {
     "01_general": {
         "enabled": True,
     },
     "02_export": {
-        "default_filename": "selected_back.html",
+        # "front" / "back" / "both"
+        "export_mode": "back",
+        "default_filename": "selected_export.html",
         "copy_media_files": True,
     },
     "03_html": {
         "doc_lang": "ja",
-        "doc_title": "Anki Back Export",
+        "doc_title": "Anki HTML Export",
     },
     "04_images": {
         "img_max_width_px": 800,
@@ -46,7 +47,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 
 def _deep_merge(defaults: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
-    """defaults をベースに user を上書きした新しい dict を返す（破壊しない）。"""
     out: Dict[str, Any] = {}
     for k, dv in defaults.items():
         uv = user.get(k, None)
@@ -58,7 +58,6 @@ def _deep_merge(defaults: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any
 
 
 def get_config() -> Dict[str, Any]:
-    """Anki のユーザー設定（meta.json）を読み、DEFAULT_CONFIG とマージした設定を返す。"""
     try:
         user_conf = mw.addonManager.getConfig(ADDON_PACKAGE)
     except Exception:
@@ -69,31 +68,29 @@ def get_config() -> Dict[str, Any]:
 
 
 def _write_config(conf: Dict[str, Any]) -> None:
-    """
-    GUIからの保存専用。
-
-    ポイント:
-    - 「既知キーだけ」を書き出す（不要キー＝キャッシュ等が溜まらない）
-    - エクスポート処理中に config を更新しない（常にGUI操作のみで変更）
-    """
-    sanitized = _deep_merge(DEFAULT_CONFIG, conf)  # defaults 構造に揃える
+    # 既知キーだけに正規化して保存（不要キー＝キャッシュ等を残さない）
+    sanitized = _deep_merge(DEFAULT_CONFIG, conf)
     try:
         mw.addonManager.writeConfig(ADDON_PACKAGE, sanitized)
     except Exception:
-        # 互換性フォールバック（古いAnki向け）
         try:
             mw.addonManager.setConfig(ADDON_PACKAGE, sanitized)
         except Exception:
             pass
 
 
-# -------------------- Custom Config GUI --------------------
+def _selected_card_ids(browser) -> list[int]:
+    # 互換性（Ankiの版差）
+    if hasattr(browser, "selected_cards"):
+        return list(browser.selected_cards())
+    return list(browser.selectedCards())
+
 
 class ConfigDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Back Export - Settings")
-        self.setMinimumWidth(560)
+        self.setWindowTitle("HTML Exporter - Settings")
+        self.setMinimumWidth(620)
 
         cfg = get_config()
 
@@ -117,19 +114,44 @@ class ConfigDialog(QDialog):
         form_e = QFormLayout(box_export)
         form_e.setVerticalSpacing(10)
 
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("Front only (before <hr id=answer>)", "front")
+        self.mode_combo.addItem("Back only (after <hr id=answer>)", "back")
+        self.mode_combo.addItem("Both (full answer HTML)", "both")
+        cur_mode = str(cfg.get("02_export", {}).get("export_mode", "back")).lower()
+        idx = self.mode_combo.findData(cur_mode)
+        self.mode_combo.setCurrentIndex(idx if idx >= 0 else 1)
+        form_e.addRow("Export mode", self.mode_combo)
+
         self.default_filename = QLineEdit()
-        self.default_filename.setText(str(cfg.get("02_export", {}).get("default_filename", "selected_back.html")))
-        self.default_filename.setPlaceholderText("selected_back.html")
+        self.default_filename.setText(str(cfg.get("02_export", {}).get("default_filename", "selected_export.html")))
+        self.default_filename.setPlaceholderText("selected_export.html")
         form_e.addRow("Default output filename", self.default_filename)
 
-        self.copy_media_cb = QCheckBox("Copy media files next to HTML (recommended)")
+        self.copy_media_cb = QCheckBox("Copy media files next to HTML")
         self.copy_media_cb.setChecked(bool(cfg.get("02_export", {}).get("copy_media_files", True)))
         form_e.addRow("", self.copy_media_cb)
 
         root.addWidget(box_export)
 
+        # ---- HTML ----
+        box_html = QGroupBox("HTML")
+        form_h = QFormLayout(box_html)
+        form_h.setVerticalSpacing(10)
+
+        self.doc_lang = QComboBox()
+        self.doc_lang.addItems(["ja", "en"])
+        self.doc_lang.setCurrentText(str(cfg.get("03_html", {}).get("doc_lang", "ja") or "ja"))
+        form_h.addRow("Document language", self.doc_lang)
+
+        self.doc_title = QLineEdit()
+        self.doc_title.setText(str(cfg.get("03_html", {}).get("doc_title", "Anki HTML Export") or "Anki HTML Export"))
+        form_h.addRow("Document title", self.doc_title)
+
+        root.addWidget(box_html)
+
         # ---- Images ----
-        box_img = QGroupBox("Images (HTML display)")
+        box_img = QGroupBox("Images (CSS max size)")
         form_i = QFormLayout(box_img)
         form_i.setVerticalSpacing(10)
 
@@ -147,10 +169,9 @@ class ConfigDialog(QDialog):
 
         root.addWidget(box_img)
 
-        # ---- Note ----
         note = QLabel(
-            "Tip: This add-on does NOT store export history/path in config.\n"
-            "Only stable user settings are saved, so the config won't grow over time."
+            "Export runs from Browser right-click menu only.\n"
+            "This add-on does NOT store export history/path/cache in config."
         )
         note.setWordWrap(True)
         root.addWidget(note)
@@ -170,29 +191,41 @@ class ConfigDialog(QDialog):
 
         root.addWidget(btns)
 
-    def _on_restore_defaults(self) -> None:
-        self.enabled_cb.setChecked(bool(DEFAULT_CONFIG["01_general"]["enabled"]))
-        self.default_filename.setText(str(DEFAULT_CONFIG["02_export"]["default_filename"]))
-        self.copy_media_cb.setChecked(bool(DEFAULT_CONFIG["02_export"]["copy_media_files"]))
-        self.max_w.setValue(int(DEFAULT_CONFIG["04_images"]["img_max_width_px"]))
-        self.max_h.setValue(int(DEFAULT_CONFIG["04_images"]["img_max_height_px"]))
-
-    def _on_save(self) -> None:
-        conf: Dict[str, Any] = {
-            "01_general": {
-                "enabled": bool(self.enabled_cb.isChecked()),
-            },
+    def _gather_conf(self) -> Dict[str, Any]:
+        return {
+            "01_general": {"enabled": bool(self.enabled_cb.isChecked())},
             "02_export": {
-                "default_filename": (self.default_filename.text() or "selected_back.html").strip(),
+                "export_mode": str(self.mode_combo.currentData() or "back"),
+                "default_filename": (self.default_filename.text() or "selected_export.html").strip(),
                 "copy_media_files": bool(self.copy_media_cb.isChecked()),
             },
-            "03_html": dict(DEFAULT_CONFIG["03_html"]),  # 現状GUI未提供（将来拡張用）
+            "03_html": {
+                "doc_lang": str(self.doc_lang.currentText() or "ja"),
+                "doc_title": (self.doc_title.text() or "Anki HTML Export").strip(),
+            },
             "04_images": {
                 "img_max_width_px": int(self.max_w.value()),
                 "img_max_height_px": int(self.max_h.value()),
             },
         }
-        _write_config(conf)
+
+    def _on_restore_defaults(self) -> None:
+        self.enabled_cb.setChecked(bool(DEFAULT_CONFIG["01_general"]["enabled"]))
+
+        idx = self.mode_combo.findData(DEFAULT_CONFIG["02_export"]["export_mode"])
+        self.mode_combo.setCurrentIndex(idx if idx >= 0 else 1)
+
+        self.default_filename.setText(str(DEFAULT_CONFIG["02_export"]["default_filename"]))
+        self.copy_media_cb.setChecked(bool(DEFAULT_CONFIG["02_export"]["copy_media_files"]))
+
+        self.doc_lang.setCurrentText(str(DEFAULT_CONFIG["03_html"]["doc_lang"]))
+        self.doc_title.setText(str(DEFAULT_CONFIG["03_html"]["doc_title"]))
+
+        self.max_w.setValue(int(DEFAULT_CONFIG["04_images"]["img_max_width_px"]))
+        self.max_h.setValue(int(DEFAULT_CONFIG["04_images"]["img_max_height_px"]))
+
+    def _on_save(self) -> None:
+        _write_config(self._gather_conf())
         QMessageBox.information(self, "Saved", "Settings saved.")
         self.accept()
 
@@ -202,17 +235,7 @@ def _show_config_dialog() -> None:
     dlg.exec()
 
 
-# -------------------- Export entry (Browser context menu) --------------------
-
-def _selected_card_ids(browser) -> list[int]:
-    # 互換性: Ankiのバージョンによりメソッド名が異なることがある
-    if hasattr(browser, "selected_cards"):
-        return list(browser.selected_cards())
-    return list(browser.selectedCards())
-
-
-def run_export_back_from_browser(browser) -> None:
-    """ブラウザで選択されたカードだけ、裏面HTMLを完全再現して出力"""
+def run_export_from_browser(browser) -> None:
     if not mw.col:
         QMessageBox.critical(browser, "Export HTML", "Collection is not loaded.")
         return
@@ -227,11 +250,10 @@ def run_export_back_from_browser(browser) -> None:
         QMessageBox.information(browser, "Export HTML", "No card selected.")
         return
 
-    default_name = str(cfg.get("02_export", {}).get("default_filename", "selected_back.html")) or "selected_back.html"
-
+    default_name = str(cfg.get("02_export", {}).get("default_filename", "selected_export.html")) or "selected_export.html"
     out_path_str, _ = QFileDialog.getSaveFileName(
         browser,
-        "Export selected cards (Back) to HTML",
+        "Export selected cards to HTML",
         default_name,
         "HTML files (*.html *.htm);;All files (*.*)",
     )
@@ -239,22 +261,13 @@ def run_export_back_from_browser(browser) -> None:
         return
 
     output_file = Path(out_path_str)
-
     try:
-        export_cards_back(mw.col, card_ids, output_file, cfg)
+        export_cards_html(mw.col, card_ids, output_file, cfg)
     except Exception as e:
-        QMessageBox.critical(
-            browser,
-            "HTML export error",
-            f"There was an error while exporting HTML:\n{e}",
-        )
+        QMessageBox.critical(browser, "HTML export error", f"There was an error while exporting HTML:\n{e}")
         return
 
-    QMessageBox.information(
-        browser,
-        "HTML export completed",
-        f"HTML exported:\n{output_file}",
-    )
+    QMessageBox.information(browser, "HTML export completed", f"HTML exported:\n{output_file}")
 
 
 def on_browser_will_show_context_menu(browser, menu) -> None:
@@ -262,19 +275,19 @@ def on_browser_will_show_context_menu(browser, menu) -> None:
     if not bool(cfg.get("01_general", {}).get("enabled", True)):
         return
 
-    act = QAction("Export selected cards (Back) to HTML…", menu)
-    act.triggered.connect(lambda _=False, b=browser: run_export_back_from_browser(b))
+    act = QAction("Export selected cards to HTML…", menu)
+    act.triggered.connect(lambda _=False, b=browser: run_export_from_browser(b))
     menu.addAction(act)
 
 
 def init_addon() -> None:
-    # 「Config」ボタン → カスタムGUI
+    # Add-ons → Config でこのGUIを開く
     try:
         mw.addonManager.setConfigAction(ADDON_PACKAGE, _show_config_dialog)
     except Exception:
         pass
 
-    # 右クリック（コンテキストメニュー）にだけ項目を追加（常設のツールボタンは増やさない）
+    # ブラウザ右クリックにだけ追加（Tools/常設メニュー追加はしない）
     try:
         gui_hooks.browser_will_show_context_menu.append(on_browser_will_show_context_menu)
     except Exception:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from anki.collection import Collection  # type: ignore
 
@@ -21,7 +21,7 @@ def _cfg_get(cfg: Optional[Dict[str, Any]], path: list[str], default: Any) -> An
 
 def _doc_head(cfg: Optional[Dict[str, Any]] = None) -> str:
     lang = str(_cfg_get(cfg, ["03_html", "doc_lang"], "ja") or "ja")
-    title = str(_cfg_get(cfg, ["03_html", "doc_title"], "Anki Back Export") or "Anki Back Export")
+    title = str(_cfg_get(cfg, ["03_html", "doc_title"], "Anki HTML Export") or "Anki HTML Export")
     img_w = int(_cfg_get(cfg, ["04_images", "img_max_width_px"], 800) or 800)
     img_h = int(_cfg_get(cfg, ["04_images", "img_max_height_px"], 400) or 400)
 
@@ -35,7 +35,8 @@ def _doc_head(cfg: Optional[Dict[str, Any]] = None) -> str:
     color: #222222;
     background-color: #ffffff;
     line-height: 2;
-    font-family: "Yu Gothic UI", "Yu Gothic", "Meiragino Sans", "Noto Sans JP", sans-serif;
+    font-family: "Yu Gothic UI", "Yu Gothic", "Meiryo",
+               "Hiragino Sans", "Noto Sans JP", sans-serif;
     font-size: 18px;
     text-align: left;
     padding: 20px;
@@ -43,7 +44,7 @@ def _doc_head(cfg: Optional[Dict[str, Any]] = None) -> str:
     margin-bottom: 40px;
     box-shadow: 0 0 10px rgba(0,0,0,0.08);
 }}
-.back {{
+.content {{
     width: 95%;
     margin: auto;
 }}
@@ -62,16 +63,29 @@ DOC_FOOT = """
 </html>
 """
 
+_RE_ANSWER_HR = re.compile(r'<hr[^>]*id=["\']answer["\'][^>]*>', re.I)
 
-def export_cards_back(col: Collection, card_ids, output_file: Path, cfg: Optional[Dict[str, Any]] = None) -> None:
-    """
-    ・card.answer() を使って裏面HTMLをレンダリング
-    ・noteのノートタイプCSSを埋め込み
-    ・1つのHTMLにまとめて出力
-    ・（設定により）画像は collection.media からコピー
-    """
+
+def _split_by_answer_hr(full_answer_html: str) -> Tuple[str, str, bool]:
+    m = _RE_ANSWER_HR.search(full_answer_html or "")
+    if not m:
+        return full_answer_html, full_answer_html, False
+    front = full_answer_html[: m.start()]
+    back = full_answer_html[m.end() :]
+    return front, back, True
+
+
+def _strip_first_style_block(html: str) -> str:
+    return re.sub(r"<style.*?</style>", "", html or "", count=1, flags=re.S | re.I)
+
+
+def export_cards_html(col: Collection, card_ids, output_file: Path, cfg: Optional[Dict[str, Any]] = None) -> None:
     media_dir = Path(col.media.dir())
     cards_html: list[str] = []
+
+    mode = str(_cfg_get(cfg, ["02_export", "export_mode"], "back") or "back").lower().strip()
+    if mode not in {"front", "back", "both"}:
+        mode = "back"
 
     for cid in card_ids:
         card = col.get_card(cid)
@@ -81,20 +95,24 @@ def export_cards_back(col: Collection, card_ids, output_file: Path, cfg: Optiona
         css = model.get("css", "")
 
         full_answer_html = card.answer()
+        front_html, back_html, _found = _split_by_answer_hr(full_answer_html)
 
-        back_html = full_answer_html
-        m = re.search(r'<hr[^>]*id=["\']answer["\'][^>]*>', full_answer_html)
-        if m:
-            back_html = full_answer_html[m.end():]
-            back_html = re.sub(r"<style.*?</style>", "", back_html, count=1, flags=re.S)
+        if mode == "front":
+            body_html = front_html
+        elif mode == "back":
+            body_html = back_html
+        else:
+            body_html = full_answer_html
+
+        body_html = _strip_first_style_block(body_html)
 
         card_block = f"""
 <div class="card">
   <style>
 {css}
   </style>
-  <div class="back">
-{back_html}
+  <div class="content">
+{body_html}
   </div>
 </div>
 <br>
@@ -112,12 +130,7 @@ def export_cards_back(col: Collection, card_ids, output_file: Path, cfg: Optiona
 
 
 def _copy_images_from_html(html: str, media_dir: Path, out_dir: Path) -> None:
-    """
-    安全対策:
-    - data: / http(s): / file: 等は無視
-    - ?query / #hash は除去
-    """
-    image_srcs = set(re.findall(r'src="([^"]+)"', html))
+    image_srcs = set(re.findall(r'src="([^"]+)"', html or ""))
     if not image_srcs or not media_dir.exists():
         return
 
