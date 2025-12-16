@@ -3,13 +3,11 @@
     "enabled": true
   },
   "02_export": {
-    "export_mode": "back",
-    "default_filename": "selected_export.html",
+    "export_mode": "both",
+    "output_format": "html",
+    "pdf_layout": "single",
+    "default_filename": "anki-exporter",
     "copy_media_files": true
-  },
-  "03_html": {
-    "doc_lang": "en",
-    "doc_title": "Anki HTML Export"
   },
   "04_images": {
     "img_max_width_px": 800,
